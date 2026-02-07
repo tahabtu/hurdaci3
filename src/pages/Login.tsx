@@ -111,10 +111,6 @@ export default function Login({ onLogin }: LoginProps) {
                         {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
                     </Button>
                 </form>
-
-                <Typography variant="caption" sx={{ mt: 4, display: 'block', color: '#94a3b8' }}>
-                    Demo: admin / admin123
-                </Typography>
             </Card>
         </Box>
     );
