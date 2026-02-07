@@ -37,7 +37,7 @@ app.use('/api/', limiter);
 // Stricter rate limit for auth endpoints
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // Limit each IP to 10 login attempts per 15 min
+    max: 50, // Limit each IP to 50 login attempts per 15 min (increased for dev)
     message: { error: 'Çok fazla giriş denemesi, lütfen 15 dakika sonra tekrar deneyin.' },
     standardHeaders: true,
     legacyHeaders: false,

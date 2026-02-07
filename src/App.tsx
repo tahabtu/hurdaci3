@@ -14,6 +14,7 @@ import {
     IconButton,
     Avatar,
     Tooltip,
+    Collapse,
 } from '@mui/material';
 import {
     Dashboard as DashboardIcon,
@@ -24,8 +25,12 @@ import {
     Science as ScienceIcon,
     AccountBalance as AccountBalanceIcon,
     Warehouse as WarehouseIcon,
-    Category as CategoryIcon,
     Logout as LogoutIcon,
+    Category as CategoryIcon,
+    History as HistoryIcon,
+    ExpandLess,
+    ExpandMore,
+    Whatshot as FireIcon,
 } from '@mui/icons-material';
 import type { User } from './types';
 
@@ -37,6 +42,7 @@ import Materials from './pages/Materials';
 import UllageTypes from './pages/UllageTypes';
 import Receiving from './pages/Receiving';
 import Inspections from './pages/Inspections';
+import FireHistory from './pages/FireHistory';
 import Selling from './pages/Selling';
 import Stock from './pages/Stock';
 import MoneyHistory from './pages/MoneyHistory';
@@ -47,18 +53,31 @@ const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
     { text: 'Partnerler', icon: <PeopleIcon />, path: '/partners' },
     { text: 'Malzemeler', icon: <InventoryIcon />, path: '/materials' },
-    { text: 'Fire Tipleri', icon: <CategoryIcon />, path: '/ullage-types' },
     { text: 'Alım İşlemleri', icon: <ShoppingCartIcon />, path: '/receiving' },
-    { text: 'Fire Analizi', icon: <ScienceIcon />, path: '/inspections' },
+    // Fire is handled separately as a submenu
     { text: 'Satış İşlemleri', icon: <PointOfSaleIcon />, path: '/selling' },
     { text: 'Stok', icon: <WarehouseIcon />, path: '/stock' },
     { text: 'Kasa Hareketleri', icon: <AccountBalanceIcon />, path: '/money' },
 ];
 
+const fireSubItems = [
+    { text: 'Fire Analizi', icon: <ScienceIcon />, path: '/fire-analysis' },
+    { text: 'Fire Geçmişi', icon: <HistoryIcon />, path: '/fire-history' },
+    { text: 'Fire Tipleri', icon: <CategoryIcon />, path: '/fire-types' },
+];
+
 function App() {
     const [user, setUser] = useState<User | null>(null);
+    const [fireMenuOpen, setFireMenuOpen] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
+
+    // Auto-expand Fire menu if on a fire route
+    useEffect(() => {
+        if (location.pathname.startsWith('/fire')) {
+            setFireMenuOpen(true);
+        }
+    }, [location.pathname]);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
@@ -102,7 +121,9 @@ function App() {
             >
                 <Toolbar>
                     <Typography variant="h6" noWrap sx={{ flexGrow: 1, fontWeight: 600, color: '#1e293b' }}>
-                        {menuItems.find((item) => item.path === location.pathname)?.text || 'Hurdacı'}
+                        {menuItems.find((item) => item.path === location.pathname)?.text ||
+                            fireSubItems.find((item) => item.path === location.pathname)?.text ||
+                            'Hurdacı'}
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                         <Typography variant="body2" sx={{ color: '#64748b' }}>
@@ -198,7 +219,92 @@ function App() {
                                 />
                             </ListItemButton>
                         </ListItem>
-                    ))}
+                    )).reduce((acc: React.ReactNode[], menuItem, index) => {
+                        acc.push(menuItem);
+                        // Insert Fire submenu after "Alım İşlemleri" (index 3)
+                        if (index === 3) {
+                            const isFireActive = location.pathname.startsWith('/fire');
+                            acc.push(
+                                <ListItem key="fire-header" disablePadding sx={{ mb: 0.5 }}>
+                                    <ListItemButton
+                                        onClick={() => setFireMenuOpen(!fireMenuOpen)}
+                                        sx={{
+                                            borderRadius: 2,
+                                            '&:hover': {
+                                                background: '#f0fdf4',
+                                            },
+                                            ...(isFireActive && {
+                                                background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.05) 0%, rgba(37, 99, 235, 0.05) 100%)',
+                                            }),
+                                        }}
+                                    >
+                                        <ListItemIcon
+                                            sx={{
+                                                color: isFireActive ? '#0d9488' : '#64748b',
+                                                minWidth: 40,
+                                            }}
+                                        >
+                                            <FireIcon />
+                                        </ListItemIcon>
+                                        <ListItemText
+                                            primary="Fire"
+                                            primaryTypographyProps={{
+                                                fontSize: '0.9rem',
+                                                fontWeight: isFireActive ? 600 : 400,
+                                                color: isFireActive ? '#0d9488' : '#1e293b',
+                                            }}
+                                        />
+                                        {fireMenuOpen ? <ExpandLess sx={{ color: '#64748b' }} /> : <ExpandMore sx={{ color: '#64748b' }} />}
+                                    </ListItemButton>
+                                </ListItem>
+                            );
+                            acc.push(
+                                <Collapse key="fire-collapse" in={fireMenuOpen} timeout="auto" unmountOnExit>
+                                    <List component="div" disablePadding>
+                                        {fireSubItems.map((subItem) => (
+                                            <ListItem key={subItem.text} disablePadding sx={{ mb: 0.5 }}>
+                                                <ListItemButton
+                                                    onClick={() => navigate(subItem.path)}
+                                                    selected={location.pathname === subItem.path}
+                                                    sx={{
+                                                        pl: 4,
+                                                        borderRadius: 2,
+                                                        '&.Mui-selected': {
+                                                            background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
+                                                            '&:hover': {
+                                                                background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.15) 0%, rgba(37, 99, 235, 0.15) 100%)',
+                                                            },
+                                                        },
+                                                        '&:hover': {
+                                                            background: '#f0fdf4',
+                                                        },
+                                                    }}
+                                                >
+                                                    <ListItemIcon
+                                                        sx={{
+                                                            color: location.pathname === subItem.path ? '#0d9488' : '#64748b',
+                                                            minWidth: 40,
+                                                        }}
+                                                    >
+                                                        {subItem.icon}
+                                                    </ListItemIcon>
+                                                    <ListItemText
+                                                        primary={subItem.text}
+                                                        primaryTypographyProps={{
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: location.pathname === subItem.path ? 600 : 400,
+                                                            color: location.pathname === subItem.path ? '#0d9488' : '#1e293b',
+                                                        }}
+                                                    />
+                                                </ListItemButton>
+                                            </ListItem>
+                                        ))}
+                                    </List>
+                                </Collapse>
+                            );
+                        }
+                        return acc;
+                    }, [])}
                 </List>
             </Drawer>
 
@@ -215,9 +321,10 @@ function App() {
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/partners" element={<Partners />} />
                     <Route path="/materials" element={<Materials />} />
-                    <Route path="/ullage-types" element={<UllageTypes />} />
                     <Route path="/receiving" element={<Receiving />} />
-                    <Route path="/inspections" element={<Inspections />} />
+                    <Route path="/fire-types" element={<UllageTypes />} />
+                    <Route path="/fire-analysis" element={<Inspections />} />
+                    <Route path="/fire-history" element={<FireHistory />} />
                     <Route path="/selling" element={<Selling />} />
                     <Route path="/stock" element={<Stock />} />
                     <Route path="/money" element={<MoneyHistory />} />
