@@ -1,6 +1,9 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import pool, { initDatabase } from './db.js';
+import { verifyAccessToken, TokenPayload } from './middleware/jwt.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -16,36 +19,86 @@ import moneyRoutes from './routes/money.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+// Security middleware
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
-// Auth middleware
-export interface AuthRequest extends express.Request {
-    user?: { id: number; tenant_id: number; username: string; name: string };
+// Rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: { error: 'Çok fazla istek, lütfen daha sonra tekrar deneyin.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/api/', limiter);
+
+// Stricter rate limit for auth endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 login attempts per 15 min
+    message: { error: 'Çok fazla giriş denemesi, lütfen 15 dakika sonra tekrar deneyin.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/api/auth/login', authLimiter);
+
+// CORS configuration
+const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+    : ['http://localhost:5173', 'http://localhost:3000'];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+
+app.use(express.json({ limit: '10mb' }));
+
+// Auth middleware with JWT verification
+export interface AuthRequest extends Request {
+    user?: TokenPayload;
 }
 
 export const authMiddleware = async (
     req: AuthRequest,
-    res: express.Response,
-    next: express.NextFunction
+    res: Response,
+    next: NextFunction
 ) => {
-    const userId = req.headers['x-user-id'];
-    if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Yetkilendirme gerekli' });
     }
 
+    const token = authHeader.split(' ')[1];
+
     try {
+        const decoded = verifyAccessToken(token);
+
+        // Verify user still exists
         const result = await pool.query(
             'SELECT id, tenant_id, username, name FROM users WHERE id = $1',
-            [userId]
+            [decoded.id]
         );
+
         if (result.rows.length === 0) {
-            return res.status(401).json({ error: 'User not found' });
+            return res.status(401).json({ error: 'Kullanıcı bulunamadı' });
         }
-        req.user = result.rows[0];
+
+        req.user = decoded;
         next();
     } catch (error) {
-        res.status(500).json({ error: 'Auth error' });
+        return res.status(401).json({ error: 'Geçersiz veya süresi dolmuş token' });
     }
 };
 
@@ -59,6 +112,17 @@ app.use('/api/inspections', authMiddleware, inspectionsRoutes);
 app.use('/api/selling', authMiddleware, sellingRoutes);
 app.use('/api/stock', authMiddleware, stockRoutes);
 app.use('/api/money', authMiddleware, moneyRoutes);
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Error handling middleware
+app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+    console.error('Server error:', err);
+    res.status(500).json({ error: 'Sunucu hatası' });
+});
 
 // Initialize database and start server
 initDatabase().then(() => {

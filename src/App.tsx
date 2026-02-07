@@ -73,9 +73,14 @@ function App() {
         navigate('/');
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            const { logout } = await import('./services/api');
+            await logout();
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
         setUser(null);
-        localStorage.removeItem('user');
         navigate('/login');
     };
 

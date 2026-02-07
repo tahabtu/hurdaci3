@@ -1,24 +1,123 @@
-import axios from 'axios';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import type { User, Partner, Material, UllageType, ReceivingTransaction, Inspection, Stock, SellingTransaction, MoneyTransaction } from '../types';
 
 const api = axios.create({
     baseURL: '/api',
 });
 
-// Add user ID to all requests
-api.interceptors.request.use((config) => {
-    const user = localStorage.getItem('user');
-    if (user) {
-        const userData = JSON.parse(user);
-        config.headers['x-user-id'] = userData.id;
+// Token management
+const getAccessToken = (): string | null => {
+    return localStorage.getItem('accessToken');
+};
+
+const getRefreshToken = (): string | null => {
+    return localStorage.getItem('refreshToken');
+};
+
+const setTokens = (accessToken: string, refreshToken: string): void => {
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+};
+
+const clearTokens = (): void => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+};
+
+// Add JWT to all requests
+api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+    const token = getAccessToken();
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });
 
+// Handle token refresh on 401
+let isRefreshing = false;
+let failedQueue: Array<{
+    resolve: (value?: unknown) => void;
+    reject: (error?: unknown) => void;
+}> = [];
+
+const processQueue = (error: Error | null, token: string | null = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
+
+api.interceptors.response.use(
+    response => response,
+    async (error: AxiosError) => {
+        const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+        // Skip token refresh for auth endpoints (login, refresh, logout)
+        const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+
+        if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+            if (isRefreshing) {
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject });
+                }).then(token => {
+                    originalRequest.headers.Authorization = `Bearer ${token}`;
+                    return api(originalRequest);
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            const refreshToken = getRefreshToken();
+            if (!refreshToken) {
+                clearTokens();
+                window.location.href = '/';
+                return Promise.reject(error);
+            }
+
+            try {
+                const response = await axios.post('/api/auth/refresh', { refreshToken });
+                const { accessToken, refreshToken: newRefreshToken } = response.data;
+                setTokens(accessToken, newRefreshToken);
+                processQueue(null, accessToken);
+                originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+                return api(originalRequest);
+            } catch (refreshError) {
+                processQueue(refreshError as Error, null);
+                clearTokens();
+                window.location.href = '/';
+                return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
+            }
+        }
+
+        return Promise.reject(error);
+    }
+);
+
 // Auth
 export const login = async (username: string, password: string): Promise<User> => {
     const response = await api.post('/auth/login', { username, password });
-    return response.data.user;
+    const { user, accessToken, refreshToken } = response.data;
+    setTokens(accessToken, refreshToken);
+    return user;
+};
+
+export const logout = async (): Promise<void> => {
+    const refreshToken = getRefreshToken();
+    try {
+        await api.post('/auth/logout', { refreshToken });
+    } finally {
+        clearTokens();
+    }
 };
 
 // Partners
@@ -127,6 +226,10 @@ export const approveReceiving = async (id: number): Promise<void> => {
 
 export const rejectReceiving = async (id: number): Promise<void> => {
     await api.post(`/receiving/${id}/reject`);
+};
+
+export const inspectReceiving = async (id: number, items: { id: number; net_weight: number; tare_weight?: number; effective_unit_price?: number }[]): Promise<void> => {
+    await api.post(`/receiving/${id}/inspect`, { items });
 };
 
 // Inspections
