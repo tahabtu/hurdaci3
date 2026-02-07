@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import {
     Box,
     Card,
@@ -84,8 +84,8 @@ export default function StockPage() {
                         </TableHead>
                         <TableBody>
                             {stockSummary.map((stock) => (
-                                <>
-                                    <TableRow key={stock.material_id} hover>
+                                <Fragment key={stock.material_id}>
+                                    <TableRow hover>
                                         <TableCell>
                                             {parseFloat(String(stock.total_quantity)) > 0 && (
                                                 <IconButton size="small" onClick={() => handleToggleExpand(stock.material_id)}>
@@ -154,7 +154,7 @@ export default function StockPage() {
                                             </Collapse>
                                         </TableCell>
                                     </TableRow>
-                                </>
+                                </Fragment>
                             ))}
                             {stockSummary.length === 0 && (
                                 <TableRow>

@@ -228,10 +228,6 @@ export const rejectReceiving = async (id: number): Promise<void> => {
     await api.post(`/receiving/${id}/reject`);
 };
 
-export const inspectReceiving = async (id: number, items: { id: number; net_weight: number; tare_weight?: number; effective_unit_price?: number }[]): Promise<void> => {
-    await api.post(`/receiving/${id}/inspect`, { items });
-};
-
 // Inspections
 export const createInspection = async (data: {
     receiving_item_id: number;
@@ -239,6 +235,26 @@ export const createInspection = async (data: {
     items: { ullage_type_id: number; weight: number }[];
 }): Promise<Inspection> => {
     const response = await api.post('/inspections', data);
+    return response.data;
+};
+
+export interface InspectionHistory {
+    id: number;
+    sample_weight: number;
+    total_ullage_weight: number;
+    ullage_percentage: number;
+    inspection_date: string;
+    material_name: string;
+    partner_name: string;
+    gross_weight: number;
+    net_weight: number;
+    unit_price: number;
+    effective_unit_price: number;
+    ullage_items: { type_name: string; weight: number }[] | null;
+}
+
+export const getInspectionHistory = async (): Promise<InspectionHistory[]> => {
+    const response = await api.get('/inspections/history');
     return response.data;
 };
 

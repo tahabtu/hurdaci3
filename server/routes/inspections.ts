@@ -24,6 +24,34 @@ router.get('/item/:itemId', async (req: AuthRequest, res: Response) => {
     }
 });
 
+// Get inspection history (all inspections with details)
+router.get('/history', async (req: AuthRequest, res: Response) => {
+    try {
+        const result = await pool.query(
+            `SELECT i.id, i.sample_weight, i.total_ullage_weight, i.ullage_percentage, i.inspection_date,
+                    m.item_name as material_name, 
+                    p.name as partner_name,
+                    ri.gross_weight, ri.net_weight, ri.unit_price, ri.effective_unit_price,
+                    json_agg(json_build_object('type_name', ut.name, 'weight', ii.weight)) FILTER (WHERE ii.id IS NOT NULL) as ullage_items
+             FROM inspections i
+             JOIN receiving_items ri ON i.receiving_item_id = ri.id
+             JOIN materials m ON ri.material_id = m.id
+             JOIN receiving_transactions rt ON ri.receiving_transaction_id = rt.id
+             JOIN partners p ON rt.partner_id = p.id
+             LEFT JOIN inspection_items ii ON i.id = ii.inspection_id
+             LEFT JOIN ullage_types ut ON ii.ullage_type_id = ut.id
+             WHERE i.tenant_id = $1
+             GROUP BY i.id, m.item_name, p.name, ri.gross_weight, ri.net_weight, ri.unit_price, ri.effective_unit_price
+             ORDER BY i.inspection_date DESC`,
+            [req.user!.tenant_id]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Get inspection history error:', error);
+        res.status(500).json({ error: 'Veriler alınamadı' });
+    }
+});
+
 // Create inspection for a receiving item
 router.post('/', async (req: AuthRequest, res: Response) => {
     const { receiving_item_id, sample_weight, items } = req.body;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import {
     Box,
     Button,
@@ -60,6 +60,10 @@ export default function Receiving() {
     const [materials, setMaterials] = useState<Material[]>([]);
     const [expandedId, setExpandedId] = useState<number | null>(null);
     const [expandedDetails, setExpandedDetails] = useState<ReceivingTransaction | null>(null);
+
+    // Approval dialog state
+    const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+    const [approvalTransaction, setApprovalTransaction] = useState<ReceivingTransaction | null>(null);
 
     const [formData, setFormData] = useState({
         partner_id: '',
@@ -176,14 +180,29 @@ export default function Receiving() {
         }
     };
 
-    const handleApprove = async (id: number) => {
-        if (confirm('Bu işlemi onaylamak istediğinizden emin misiniz?')) {
-            try {
-                await approveReceiving(id);
-                loadData();
-            } catch (error) {
-                console.error('Failed to approve:', error);
-            }
+    const handleOpenApprovalDialog = async (tx: ReceivingTransaction) => {
+        try {
+            const details = await getReceivingTransaction(tx.id);
+            setApprovalTransaction(details);
+            setApprovalDialogOpen(true);
+        } catch (error) {
+            console.error('Failed to load transaction details:', error);
+        }
+    };
+
+    const handleCloseApprovalDialog = () => {
+        setApprovalDialogOpen(false);
+        setApprovalTransaction(null);
+    };
+
+    const handleConfirmApproval = async () => {
+        if (!approvalTransaction) return;
+        try {
+            await approveReceiving(approvalTransaction.id);
+            handleCloseApprovalDialog();
+            loadData();
+        } catch (error) {
+            console.error('Failed to approve:', error);
         }
     };
 
@@ -246,8 +265,8 @@ export default function Receiving() {
                         </TableHead>
                         <TableBody>
                             {transactions.map((tx) => (
-                                <>
-                                    <TableRow key={tx.id} hover>
+                                <Fragment key={tx.id}>
+                                    <TableRow hover>
                                         <TableCell>
                                             <IconButton size="small" onClick={() => handleToggleExpand(tx.id)}>
                                                 {expandedId === tx.id ? <ExpandLessIcon /> : <ExpandMoreIcon />}
@@ -269,7 +288,7 @@ export default function Receiving() {
                                         <TableCell align="right">
                                             {tx.status === 'inspected' && (
                                                 <>
-                                                    <IconButton size="small" color="success" onClick={() => handleApprove(tx.id)}>
+                                                    <IconButton size="small" color="success" onClick={() => handleOpenApprovalDialog(tx)}>
                                                         <CheckIcon fontSize="small" />
                                                     </IconButton>
                                                     <IconButton size="small" color="error" onClick={() => handleReject(tx.id)}>
@@ -332,7 +351,7 @@ export default function Receiving() {
                                             </Collapse>
                                         </TableCell>
                                     </TableRow>
-                                </>
+                                </Fragment>
                             ))}
                             {transactions.length === 0 && (
                                 <TableRow>
@@ -465,6 +484,113 @@ export default function Receiving() {
                     </Button>
                 </DialogActions>
             </Dialog>
-        </Box>
+
+            {/* Approval Confirmation Dialog */}
+            <Dialog open={approvalDialogOpen} onClose={handleCloseApprovalDialog} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ borderBottom: '1px solid #e2e8f0' }}>
+                    İşlem Onayı
+                </DialogTitle>
+                <DialogContent>
+                    {approvalTransaction && (
+                        <Box sx={{ pt: 2 }}>
+                            <Card sx={{ p: 2, mb: 3, bgcolor: '#f8fafc' }}>
+                                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                    İşlem Özeti
+                                </Typography>
+                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Tedarikçi</Typography>
+                                        <Typography variant="body1" fontWeight={600}>{approvalTransaction.partner_name}</Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">İşlem Tarihi</Typography>
+                                        <Typography variant="body1">{new Date(approvalTransaction.transaction_date).toLocaleDateString('tr-TR')}</Typography>
+                                    </Box>
+                                    {approvalTransaction.doc_date && (
+                                        <Box>
+                                            <Typography variant="caption" color="text.secondary">Evrak Tarihi</Typography>
+                                            <Typography variant="body1">{new Date(approvalTransaction.doc_date).toLocaleDateString('tr-TR')}</Typography>
+                                        </Box>
+                                    )}
+                                    {(approvalTransaction.plate_no_1 || approvalTransaction.plate_no_2) && (
+                                        <Box>
+                                            <Typography variant="caption" color="text.secondary">Plakalar</Typography>
+                                            <Typography variant="body1">
+                                                {approvalTransaction.plate_no_1 || '-'} / {approvalTransaction.plate_no_2 || '-'}
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Card>
+
+                            <Typography variant="subtitle2" sx={{ mb: 2 }}>Malzemeler</Typography>
+                            <TableContainer component={Card} variant="outlined">
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Malzeme</TableCell>
+                                            <TableCell align="right">Net Ağırlık</TableCell>
+                                            <TableCell align="right">Efektif Fiyat (₺)</TableCell>
+                                            <TableCell align="right">Tutar (₺)</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {approvalTransaction.items?.map((item) => (
+                                            <TableRow key={item.id}>
+                                                <TableCell>{item.material_name}</TableCell>
+                                                <TableCell align="right">
+                                                    {item.net_weight
+                                                        ? `${parseFloat(String(item.net_weight)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ${item.unit_of_measure}`
+                                                        : '-'
+                                                    }
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                    {item.effective_unit_price
+                                                        ? parseFloat(String(item.effective_unit_price)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })
+                                                        : '-'
+                                                    }
+                                                </TableCell>
+                                                <TableCell align="right">
+                                                    {parseFloat(String(item.total_amount)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+
+                            <Card sx={{ mt: 3, p: 2, bgcolor: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary">Lojistik Maliyet</Typography>
+                                        <Typography variant="body1">
+                                            {parseFloat(String(approvalTransaction.logistics_cost)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ textAlign: 'right' }}>
+                                        <Typography variant="caption" color="text.secondary">Toplam Tutar</Typography>
+                                        <Typography variant="h5" sx={{ color: '#10b981', fontWeight: 700 }}>
+                                            {parseFloat(String(approvalTransaction.total_amount)).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Card>
+
+                            {approvalTransaction.notes && (
+                                <Typography variant="body2" sx={{ mt: 2, color: '#64748b' }}>
+                                    <strong>Not:</strong> {approvalTransaction.notes}
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ p: 3, borderTop: '1px solid #e2e8f0' }}>
+                    <Button onClick={handleCloseApprovalDialog}>İptal</Button>
+                    <Button variant="contained" color="success" onClick={handleConfirmApproval}>
+                        Onayla
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box >
     );
 }
