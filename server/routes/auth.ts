@@ -15,7 +15,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     try {
         const result = await pool.query(
-            'SELECT id, tenant_id, username, password_hash, name FROM users WHERE username = $1',
+            'SELECT id, tenant_id, username, password_hash, name, role FROM users WHERE username = $1',
             [username]
         );
 
@@ -47,7 +47,8 @@ router.post('/login', async (req: Request, res: Response) => {
             id: user.id,
             tenant_id: user.tenant_id,
             username: user.username,
-            name: user.name
+            name: user.name,
+            role: user.role || 'user'
         };
 
         const accessToken = generateAccessToken(tokenPayload);
@@ -64,7 +65,8 @@ router.post('/login', async (req: Request, res: Response) => {
                 id: user.id,
                 tenant_id: user.tenant_id,
                 username: user.username,
-                name: user.name
+                name: user.name,
+                role: user.role || 'user'
             },
             accessToken,
             refreshToken
@@ -88,7 +90,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
 
         // Verify refresh token exists in database
         const result = await pool.query(
-            'SELECT id, tenant_id, username, name, refresh_token FROM users WHERE id = $1',
+            'SELECT id, tenant_id, username, name, role, refresh_token FROM users WHERE id = $1',
             [decoded.id]
         );
 
@@ -101,7 +103,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
             id: user.id,
             tenant_id: user.tenant_id,
             username: user.username,
-            name: user.name
+            name: user.name,
+            role: user.role || 'user'
         };
 
         const newAccessToken = generateAccessToken(tokenPayload);

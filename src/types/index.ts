@@ -1,10 +1,13 @@
 // Type definitions for the application
 
+export type UserRole = 'superuser' | 'admin' | 'user';
+
 export interface User {
     id: number;
     tenant_id: number;
     username: string;
     name: string;
+    role: UserRole;
 }
 
 export interface Partner {

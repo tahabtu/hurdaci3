@@ -15,6 +15,7 @@ import inspectionsRoutes from './routes/inspections.js';
 import sellingRoutes from './routes/selling.js';
 import stockRoutes from './routes/stock.js';
 import moneyRoutes from './routes/money.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -112,6 +113,7 @@ app.use('/api/inspections', authMiddleware, inspectionsRoutes);
 app.use('/api/selling', authMiddleware, sellingRoutes);
 app.use('/api/stock', authMiddleware, stockRoutes);
 app.use('/api/money', authMiddleware, moneyRoutes);
+app.use('/api/admin', adminRoutes); // Admin routes have built-in auth middleware
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

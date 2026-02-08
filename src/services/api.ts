@@ -306,4 +306,97 @@ export const createMoneyTransaction = async (data: {
     return response.data;
 };
 
+// ============================================
+// ADMIN APIs (Superuser only)
+// ============================================
+
+export interface Tenant {
+    id: number;
+    name: string;
+    created_at: string;
+    user_count?: number;
+}
+
+export interface AdminUser {
+    id: number;
+    tenant_id: number | null;
+    username: string;
+    name: string;
+    role: 'superuser' | 'admin' | 'user';
+    created_at: string;
+    tenant_name?: string;
+}
+
+export interface AdminStats {
+    tenants: number;
+    users: number;
+    partners: number;
+    materials: number;
+    receiving_transactions: number;
+    selling_transactions: number;
+}
+
+// Tenants
+export const getTenants = async (): Promise<Tenant[]> => {
+    const response = await api.get('/admin/tenants');
+    return response.data;
+};
+
+export const createTenant = async (name: string): Promise<Tenant> => {
+    const response = await api.post('/admin/tenants', { name });
+    return response.data;
+};
+
+export const updateTenant = async (id: number, name: string): Promise<Tenant> => {
+    const response = await api.put(`/admin/tenants/${id}`, { name });
+    return response.data;
+};
+
+export const deleteTenant = async (id: number): Promise<void> => {
+    await api.delete(`/admin/tenants/${id}`);
+};
+
+// Users
+export const getAdminUsers = async (): Promise<AdminUser[]> => {
+    const response = await api.get('/admin/users');
+    return response.data;
+};
+
+export const getUsersByTenant = async (tenantId: number): Promise<AdminUser[]> => {
+    const response = await api.get(`/admin/users/tenant/${tenantId}`);
+    return response.data;
+};
+
+export const createAdminUser = async (data: {
+    tenant_id?: number;
+    username: string;
+    password: string;
+    name: string;
+    role: 'superuser' | 'admin' | 'user';
+}): Promise<AdminUser> => {
+    const response = await api.post('/admin/users', data);
+    return response.data;
+};
+
+export const updateAdminUser = async (id: number, data: {
+    tenant_id?: number;
+    username: string;
+    password?: string;
+    name: string;
+    role: 'superuser' | 'admin' | 'user';
+}): Promise<AdminUser> => {
+    const response = await api.put(`/admin/users/${id}`, data);
+    return response.data;
+};
+
+export const deleteAdminUser = async (id: number): Promise<void> => {
+    await api.delete(`/admin/users/${id}`);
+};
+
+// Stats
+export const getAdminStats = async (): Promise<AdminStats> => {
+    const response = await api.get('/admin/stats');
+    return response.data;
+};
+
 export default api;

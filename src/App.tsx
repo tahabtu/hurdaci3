@@ -31,6 +31,7 @@ import {
     ExpandLess,
     ExpandMore,
     Whatshot as FireIcon,
+    AdminPanelSettings as AdminIcon,
 } from '@mui/icons-material';
 import type { User } from './types';
 
@@ -46,6 +47,7 @@ import FireHistory from './pages/FireHistory';
 import Selling from './pages/Selling';
 import Stock from './pages/Stock';
 import MoneyHistory from './pages/MoneyHistory';
+import AdminManagement from './pages/AdminManagement';
 
 const drawerWidth = 260;
 
@@ -306,6 +308,47 @@ function App() {
                         return acc;
                     }, [])}
                 </List>
+
+                {/* Admin Panel - Only for superusers */}
+                {user?.role === 'superuser' && (
+                    <List sx={{ mt: 2, pt: 2, borderTop: '1px solid #e2e8f0' }}>
+                        <ListItem key="admin" disablePadding sx={{ mb: 0.5 }}>
+                            <ListItemButton
+                                onClick={() => navigate('/admin')}
+                                selected={location.pathname === '/admin'}
+                                sx={{
+                                    borderRadius: 2,
+                                    '&.Mui-selected': {
+                                        background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(251, 146, 60, 0.1) 100%)',
+                                        '&:hover': {
+                                            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(251, 146, 60, 0.15) 100%)',
+                                        },
+                                    },
+                                    '&:hover': {
+                                        background: '#fef2f2',
+                                    },
+                                }}
+                            >
+                                <ListItemIcon
+                                    sx={{
+                                        color: location.pathname === '/admin' ? '#dc2626' : '#64748b',
+                                        minWidth: 40,
+                                    }}
+                                >
+                                    <AdminIcon />
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary="Yönetim Paneli"
+                                    primaryTypographyProps={{
+                                        fontSize: '0.9rem',
+                                        fontWeight: location.pathname === '/admin' ? 600 : 400,
+                                        color: location.pathname === '/admin' ? '#dc2626' : '#1e293b',
+                                    }}
+                                />
+                            </ListItemButton>
+                        </ListItem>
+                    </List>
+                )}
             </Drawer>
 
             <Box
@@ -328,6 +371,7 @@ function App() {
                     <Route path="/selling" element={<Selling />} />
                     <Route path="/stock" element={<Stock />} />
                     <Route path="/money" element={<MoneyHistory />} />
+                    <Route path="/admin" element={user?.role === 'superuser' ? <AdminManagement /> : <Navigate to="/" replace />} />
                     <Route path="/login" element={<Navigate to="/" replace />} />
                 </Routes>
             </Box>
