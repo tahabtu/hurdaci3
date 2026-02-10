@@ -6,16 +6,19 @@ const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
 
+export type UserRole = 'superuser' | 'admin' | 'user';
+
 export interface TokenPayload {
     id: number;
     tenant_id: number;
     username: string;
     name: string;
+    role: UserRole;
 }
 
 export function generateAccessToken(user: TokenPayload): string {
     return jwt.sign(
-        { id: user.id, tenant_id: user.tenant_id, username: user.username, name: user.name },
+        { id: user.id, tenant_id: user.tenant_id, username: user.username, name: user.name, role: user.role },
         JWT_SECRET,
         { expiresIn: ACCESS_TOKEN_EXPIRY }
     );

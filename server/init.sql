@@ -5,18 +5,19 @@ CREATE TABLE IF NOT EXISTS tenants (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Users (with bcrypt password hashing)
+-- Users (with bcrypt password hashing and role-based access)
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   tenant_id INTEGER REFERENCES tenants(id),
   username VARCHAR(100) UNIQUE NOT NULL,
   password_hash VARCHAR(255),
   name VARCHAR(255),
+  role VARCHAR(20) DEFAULT 'user' CHECK(role IN ('superuser', 'admin', 'user')),
   refresh_token TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Migration: Add password_hash column if it doesn't exist (for existing databases)
+-- Migration: Add columns if they don't exist (for existing databases)
 DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash') THEN
@@ -24,6 +25,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'refresh_token') THEN
         ALTER TABLE users ADD COLUMN refresh_token TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'role') THEN
+        ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user';
     END IF;
 END $$;
 
@@ -155,10 +159,10 @@ CREATE TABLE IF NOT EXISTS money_transactions (
 
 -- Seed default tenant and admin user
 INSERT INTO tenants (name) VALUES ('Demo Şirket') ON CONFLICT (name) DO NOTHING;
--- Password: admin123 (bcrypt hash, 12 rounds)
-INSERT INTO users (tenant_id, username, password_hash, name) 
-VALUES (1, 'admin', '$2b$12$lPWTbl5R6VPB.sL7dWxkqe6hWViTVmA3eFS/azLKMXFJ4c8dE9wIG', 'Yönetici') 
-ON CONFLICT (username) DO UPDATE SET password_hash = '$2b$12$lPWTbl5R6VPB.sL7dWxkqe6hWViTVmA3eFS/azLKMXFJ4c8dE9wIG';
+-- Password: admin123 (bcrypt hash, 12 rounds) - Superuser role for full system access
+INSERT INTO users (tenant_id, username, password_hash, name, role) 
+VALUES (1, 'admin', '$2b$12$lPWTbl5R6VPB.sL7dWxkqe6hWViTVmA3eFS/azLKMXFJ4c8dE9wIG', 'Yönetici', 'superuser') 
+ON CONFLICT (username) DO UPDATE SET password_hash = '$2b$12$lPWTbl5R6VPB.sL7dWxkqe6hWViTVmA3eFS/azLKMXFJ4c8dE9wIG', role = 'superuser';
 
 -- Seed some ullage types
 INSERT INTO ullage_types (tenant_id, name, description) VALUES 
